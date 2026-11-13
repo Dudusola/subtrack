@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Subtrack</title>
+  <meta name="description" content="Private subscription tracker: see what renews next, what it costs per month, and get calendar reminders before you're charged.">
+  <meta name="theme-color" content="#0f1115">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root { --bg:#f6f5f2; --card:#fff; --ink:#16181d; --muted:#6b6f78; --line:#e4e2dc; --accent:#2d6a4f; --warn:#b4432b; --warn-bg:#fbe9e4; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0f1115; --card:#181b21; --ink:#eceae4; --muted:#9a9ea8; --line:#2a2e36; --accent:#74c69d; --warn:#ff8a70; --warn-bg:#3a1f19; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width:720px; margin:0 auto; padding:32px 16px 64px; }
+    header h1 { margin:0; font-size:28px; letter-spacing:-0.02em; }
+    header p { margin:4px 0 0; color:var(--muted); }
+    .totals { display:flex; gap:12px; flex-wrap:wrap; margin:24px 0; }
+    .stat { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+    .stat b { display:block; font-size:22px; font-variant-numeric:tabular-nums; }
+    .stat span { color:var(--muted); font-size:13px; }
+    form { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+    form label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); }
+    form .wide { grid-column:1 / -1; }
+    input, select, button { font:inherit; color:inherit; }
+    input, select { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-width:0; }
+    button { border:0; border-radius:8px; padding:9px 14px; cursor:pointer; background:var(--line); }
+    button.primary { background:var(--accent); color:var(--bg); font-weight:600; }
+    .row-actions { display:flex; gap:8px; align-items:end; }
+    ul { list-style:none; padding:0; margin:24px 0; display:grid; gap:8px; }
+    li { display:grid; grid-template-columns:1fr auto; gap:4px 12px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+    li .name { font-weight:600; }
+    li .meta { color:var(--muted); font-size:14px; }
+    li .due { justify-self:end; font-size:13px; padding:2px 8px; border-radius:99px; background:var(--bg); white-space:nowrap; }
+    li.soon .due { background:var(--warn-bg); color:var(--warn); font-weight:600; }
+    li .ops { grid-column:1 / -1; display:flex; gap:12px; }
+    li .ops button { background:none; padding:0; color:var(--muted); font-size:13px; text-decoration:underline; }
+    .empty { color:var(--muted); text-align:center; padding:32px 0; }
+    .tools { display:flex; gap:8px; flex-wrap:wrap; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    @media (max-width:520px) { form { grid-template-columns:1fr 1fr; } form .name-field { grid-column:1 / -1; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Subtrack</h1>
+      <p>Know what renews next, before you're charged. Your data never leaves this browser.</p>
+    </header>
+
+    <section class="totals" id="totals" aria-live="polite"></section>
+
+    <form id="form">
+      <label class="name-field">Name<input name="name" required maxlength="60" placeholder="Netflix"></label>
+      <label>Price<input name="price" type="number" min="0" step="0.01" required placeholder="15.49"></label>
+      <label>Currency<input name="currency" required maxlength="3" value="USD" pattern="[A-Za-z]{3}" title="3-letter code, e.g. USD, EUR, NGN"></label>
+      <label>Billed<select name="cycle"><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="weekly">Weekly</option></select></label>
+      <label>First charge<input name="start" type="date" required></label>
+      <div class="row-actions"><button class="primary" type="submit" id="submit">Add</button><button type="button" id="cancel" hidden>Cancel</button></div>
+    </form>
+
+    <ul id="list"></ul>
+
+    <div class="tools">
+      <label>Remind me <select id="remind"><option>1</option><option selected>3</option><option>7</option></select> days before</label>
+      <button id="ics">Add reminders to calendar (.ics)</button>
+      <button id="export">Back up (JSON)</button>
+      <button id="import">Restore</button>
+      <input type="file" id="file" accept="application/json,.json" hidden>
+    </div>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
