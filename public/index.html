@@ -31,17 +31,35 @@
     </div>
 
     <div class="auth-card">
-      <div class="seg" role="radiogroup" aria-label="Account">
-        <input type="radio" name="mode" id="mode-signin" value="signin" checked><label for="mode-signin">Sign in</label>
-        <input type="radio" name="mode" id="mode-signup" value="signup"><label for="mode-signup">Create account</label>
+      <div id="panel-auth">
+        <div class="seg" role="radiogroup" aria-label="Account">
+          <input type="radio" name="mode" id="mode-signin" value="signin" checked><label for="mode-signin">Sign in</label>
+          <input type="radio" name="mode" id="mode-signup" value="signup"><label for="mode-signup">Create account</label>
+        </div>
+        <form id="auth-form" novalidate>
+          <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
+          <label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" minlength="8" required></label>
+          <p class="form-error" id="auth-error" role="alert"></p>
+          <button class="btn btn-primary" type="submit" id="auth-submit">Sign in</button>
+          <button class="link" type="button" id="forgot">Forgot your password?</button>
+        </form>
       </div>
-      <form id="auth-form" novalidate>
+      <form id="forgot-form" novalidate hidden>
+        <h2 class="card-title">Reset your password</h2>
+        <p class="muted">We’ll email you a link that works for one hour.</p>
         <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
-        <label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" minlength="8" required></label>
-        <p class="form-error" id="auth-error" role="alert"></p>
-        <button class="btn btn-primary" type="submit" id="auth-submit">Sign in</button>
+        <p class="form-error" id="forgot-error" role="alert"></p>
+        <button class="btn btn-primary" type="submit" id="forgot-submit">Email me a link</button>
+        <button class="link" type="button" data-back>Back to sign in</button>
       </form>
-      <p class="fine">Open source under the MIT license. Your data stays on the server you run it on.</p>
+      <form id="reset-form" novalidate hidden>
+        <h2 class="card-title">Choose a new password</h2>
+        <label class="field"><span>New password</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <p class="form-error" id="reset-error" role="alert"></p>
+        <button class="btn btn-primary" type="submit" id="reset-submit">Save and sign in</button>
+        <button class="link" type="button" data-back>Back to sign in</button>
+      </form>
+      <p class="fine">Free and open source under the MIT license. <a href="/privacy.html">Privacy</a></p>
     </div>
   </div>
 
@@ -54,7 +72,7 @@
       <button class="btn btn-outline btn-sm" id="nav-settings" type="button">Settings</button>
     </nav>
     <main class="dash" id="dash"></main>
-    <footer class="foot"><span>Subtrack · open source, MIT license</span><span id="foot-email"></span></footer>
+    <footer class="foot"><span>Subtrack · free and open source · <a href="/privacy.html">Privacy</a></span><span id="foot-email"></span></footer>
   </div>
 
   <dialog id="edit-dialog" aria-labelledby="edit-title">
@@ -71,6 +89,7 @@
       </div>
       <label class="field"><span>Category (optional)</span><input name="category" maxlength="40" placeholder="Streaming, work, cloud…" list="categories" autocomplete="off"></label>
       <datalist id="categories"></datalist>
+      <label class="check"><input type="checkbox" name="trial"><span>This is a free trial. The date above is when it starts charging.</span></label>
       <p class="form-error" id="edit-error" role="alert"></p>
       <div class="dialog-actions">
         <button class="btn btn-danger" type="button" id="edit-delete">Delete</button>
@@ -84,6 +103,11 @@
 
   <dialog id="settings-dialog" aria-labelledby="settings-title">
     <h2 id="settings-title">Settings</h2>
+    <section class="settings-group" id="mail-settings">
+      <h3>Email reminders</h3>
+      <label class="check"><input type="checkbox" id="mail-on"><span>Email me before each charge and when a free trial is about to end</span></label>
+      <label class="field"><span>How early</span><select id="mail-days"><option value="1">1 day before</option><option value="3">3 days before</option><option value="7">7 days before</option></select></label>
+    </section>
     <section class="settings-group">
       <h3>Calendar reminders</h3>
       <p>Subscribe to this link in Google Calendar, Apple Calendar or Outlook. It updates on its own as you add or remove subscriptions.</p>
@@ -113,6 +137,32 @@
       <p class="form-error" id="delete-error" role="alert"></p>
     </section>
     <div class="dialog-actions"><div class="right"><button class="btn btn-primary" type="button" data-close>Done</button></div></div>
+  </dialog>
+
+  <dialog id="scan-dialog" aria-labelledby="scan-title">
+    <h2 id="scan-title">Scan your inbox</h2>
+    <section class="settings-group" id="scan-google">
+      <h3>Sign in with Google</h3>
+      <p>Google asks you to allow read-only access. Subtrack reads your receipts once, then gives the access back.</p>
+      <div class="row"><a class="btn btn-accent" href="/api/gmail/start">Continue with Google</a></div>
+    </section>
+    <form class="settings-group" id="imap-form" novalidate>
+      <h3 id="imap-title">Use an app password</h3>
+      <p>Works with Gmail, Yahoo, iCloud, Zoho and AOL. An app password is a separate password your email provider gives you for apps like this one. Subtrack uses it for this one scan and never stores it.</p>
+      <details>
+        <summary>How to get one for Gmail</summary>
+        <ol class="steps">
+          <li>Turn on 2-Step Verification in your Google Account, if it isn’t on already.</li>
+          <li>Open <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>, type “Subtrack” and press Create.</li>
+          <li>Copy the 16-letter password into the box below. You can delete it in the same place afterwards.</li>
+        </ol>
+      </details>
+      <label class="field"><span>Email address</span><input name="email" type="email" autocomplete="email" required></label>
+      <label class="field"><span>App password</span><input name="password" type="password" autocomplete="off" required spellcheck="false"></label>
+      <p class="form-error" id="imap-error" role="alert"></p>
+      <div class="row"><button class="btn btn-primary" type="submit" id="imap-submit">Scan my inbox</button><span class="fine" id="imap-wait" hidden>Reading receipts. This can take up to a minute…</span></div>
+    </form>
+    <div class="dialog-actions"><div class="right"><button class="btn btn-ghost" type="button" data-close>Cancel</button></div></div>
   </dialog>
 
   <div id="toast-region" aria-live="polite"></div>

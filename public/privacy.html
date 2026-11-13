@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Subtrack · Privacy</title>
+  <meta name="description" content="What Subtrack reads, what it stores, and how to delete it.">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="doc">
+    <a class="wordmark" href="/"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="currentColor"/><path d="M18 24h28M18 34h28M18 44h16" stroke="var(--color-paper)" stroke-width="5" stroke-linecap="round"/><circle cx="46" cy="44" r="5" fill="var(--color-accent)"/></svg>Subtrack</a>
+    <h1>Privacy</h1>
+    <p class="lede">Subtrack is free, open-source software. This page says what it reads, what it keeps and how to remove it. It applies to any copy of Subtrack, and the person running that copy is responsible for it.</p>
+
+    <h2>What we store</h2>
+    <ul>
+      <li>Your email address and a scrambled (hashed) form of your password. Nobody can read the password itself.</li>
+      <li>The subscriptions you add or confirm: name, price, currency, billing cycle, date, category and whether it’s a free trial.</li>
+      <li>The results of your last inbox scan, until you confirm or dismiss them.</li>
+      <li>A record of which reminder emails were sent, so you don’t get the same one twice. These are deleted after 60 days.</li>
+    </ul>
+
+    <h2>Your email inbox</h2>
+    <ul>
+      <li><strong>Read-only, only when you ask.</strong> Your mail is read only when you start a scan. It searches for billing emails (receipts, invoices, renewals) from the last 13 months.</li>
+      <li><strong>Nothing kept from the emails themselves.</strong> From each email it works out a merchant name, an amount, a date and a short subject line. The email text is not stored.</li>
+      <li><strong>No lasting access.</strong> With Google sign-in, the access token is never saved and is revoked as soon as the scan ends. With an app password, the password is used for that one connection and never saved. You can also delete the app password from your email account at any time.</li>
+      <li><strong>Google user data</strong> is used only to show you your own subscriptions. It is never sold or shared, and never used for ads or for training AI models. Subtrack’s use of data from Google APIs follows the Google API Services User Data Policy, including the Limited Use requirements.</li>
+    </ul>
+
+    <h2>Email we send you</h2>
+    <p>Reminders before a charge or a trial ends, if you have them on (turn them off in Settings), and password reset links when you ask for one. No marketing.</p>
+
+    <h2>Cookies</h2>
+    <p>One cookie keeps you signed in. There’s no tracking or analytics, and no ads.</p>
+
+    <h2>Deleting your data</h2>
+    <p>Settings → <strong>Delete account</strong> permanently removes your account, subscriptions, scan results and reminder history. Settings → <strong>Download backup</strong> gives you a copy first.</p>
+
+    <h2>Questions</h2>
+    <p>Subtrack is open source, so you can read exactly what it does: <a href="https://github.com/Dudusola/subtrack">github.com/Dudusola/subtrack</a>.</p>
+  </main>
+</body>
+</html>

@@ -74,10 +74,14 @@ function heroView(subs, now) {
     </section>`;
 }
 
+// "Spotify" from a receipt matches "Spotify Premium" you already track.
+function trackedMatch(name) {
+  const n = name.toLowerCase();
+  return state.subs.find((s) => { const t = s.name.toLowerCase(); return t.includes(n) || n.includes(t); });
+}
+
 function reviewView(scan) {
   if (!scan) return '';
-  const tracked = state.subs.map((s) => s.name.toLowerCase());
-  const isTracked = (name) => tracked.some((t) => t.includes(name.toLowerCase()) || name.toLowerCase().includes(t)); // "Spotify" ~ "Spotify Premium"
   const items = scan.found;
   return html`
     <section class="section" aria-labelledby="review-title">
@@ -90,12 +94,16 @@ function reviewView(scan) {
           <form id="review-form">
             <ul class="review-list">
               ${items.map((f, i) => {
-                const dupe = isTracked(f.name);
+                const existing = trackedMatch(f.name);
+                const changed = existing && existing.currency === f.currency && Math.abs(existing.price - f.price) >= 0.01;
+                const ticked = changed || (!existing && f.confidence !== 'low');
                 return html`<li><label>
-                  <input type="checkbox" name="pick" value="${i}" ${{ __html: f.confidence !== 'low' && !dupe ? 'checked' : '' }}>
+                  <input type="checkbox" name="pick" value="${i}" ${{ __html: ticked ? 'checked' : '' }}>
                   <span class="name">${f.name}</span>
                   <span class="tnum">${money(f.price, f.currency)}${PER[f.cycle]}</span>
-                  <span class="evidence">${f.receipts} ${f.receipts === 1 ? 'receipt' : 'receipts'}, last on ${shortDate(f.start)} · <span class="chip ${f.confidence === 'high' ? 'chip-high' : ''}">${f.confidence === 'high' ? 'Repeats on schedule' : f.confidence === 'medium' ? 'Says it renews' : 'Guess: check it'}</span>${dupe ? ' · already tracked' : ''}</span>
+                  <span class="evidence">${changed
+                    ? html`<span class="chip chip-change">Price changed</span> You track it at ${money(existing.price, existing.currency)}. Tick to update.`
+                    : html`${f.receipts} ${f.receipts === 1 ? 'receipt' : 'receipts'}, last on ${shortDate(f.start)} · <span class="chip ${f.confidence === 'high' ? 'chip-high' : ''}">${f.confidence === 'high' ? 'Repeats on schedule' : f.confidence === 'medium' ? 'Says it renews' : 'Guess: check it'}</span>${existing ? ' · already tracked' : ''}`}</span>
                 </label></li>`;
               })}
             </ul>
@@ -185,7 +193,7 @@ function listView(subs, now) {
         ${rows.map((r) => {
           const d = daysUntil(r.next, now);
           return html`<li data-id="${r.id}">
-            <span class="name">${r.name}${r.category ? html`<span class="cat">${r.category}</span>` : ''}</span>
+            <span class="name">${r.name}${r.trial && r.start >= now ? html`<span class="chip chip-soon">Trial</span>` : ''}${r.category ? html`<span class="cat">${r.category}</span>` : ''}</span>
             <span class="cycle muted">${r.cycle[0].toUpperCase() + r.cycle.slice(1)}${r.cycle !== 'monthly' ? html` <span class="fine">≈ ${money(monthlyCost(r), r.currency)}/mo</span>` : ''}</span>
             <span class="num price">${money(r.price, r.currency)}</span>
             <span class="next ${d <= 3 ? 'soon' : ''}">${d <= 1 ? whenText(d)[0].toUpperCase() + whenText(d).slice(1) : shortDate(r.next)}</span>
@@ -200,12 +208,11 @@ function emptyView() {
   return html`
     <section class="empty" aria-labelledby="empty-title">
       <h1 id="empty-title">Nothing tracked yet.</h1>
-      <p>Scan your Gmail to find subscriptions from your receipts, or add the ones you know by hand.</p>
+      <p>Scan your inbox to find subscriptions from your receipts, or add the ones you know by hand.</p>
       <div class="hero-actions">
-        ${state.me.gmail ? html`<button class="btn btn-accent" type="button" data-action="scan">Scan Gmail</button>` : ''}
-        <button class="btn ${state.me.gmail ? 'btn-outline' : 'btn-primary'}" type="button" data-action="add">Add one by hand</button>
+        <button class="btn btn-accent" type="button" data-action="scan">Scan your inbox</button>
+        <button class="btn btn-outline" type="button" data-action="add">Add one by hand</button>
       </div>
-      ${state.me.gmail ? '' : html`<p class="fine">Inbox scanning isn’t switched on for this server yet. See the README to connect Google.</p>`}
     </section>`;
 }
 
@@ -218,7 +225,6 @@ function render() {
   $('auth-view').hidden = true;
   $('dash-view').hidden = false;
   $('foot-email').textContent = state.me.email;
-  $('nav-scan').hidden = !state.me.gmail;
   const now = today();
   const subs = state.subs.filter((s) => s.id !== state.pendingDelete);
   const view = subs.length
@@ -261,6 +267,7 @@ function openEditor(sub) {
   $('edit-delete').hidden = !sub;
   const fallback = { currency: primaryCurrency(state.subs) || 'USD', cycle: 'monthly', start: today() };
   for (const k of ['name', 'price', 'currency', 'cycle', 'start', 'category']) f[k].value = (sub || fallback)[k] ?? '';
+  f.trial.checked = Boolean(sub?.trial);
   $('edit-dialog').showModal();
   f.name.focus();
 }
@@ -268,7 +275,7 @@ function openEditor(sub) {
 $('edit-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
-  const data = { name: f.name.value, price: Number(f.price.value), currency: f.currency.value.trim().toUpperCase(), cycle: f.cycle.value, start: f.start.value, category: f.category.value };
+  const data = { name: f.name.value, price: Number(f.price.value), currency: f.currency.value.trim().toUpperCase(), cycle: f.cycle.value, start: f.start.value, category: f.category.value, trial: f.trial.checked };
   for (const k of ['name', 'price', 'currency', 'start']) f[k].removeAttribute('aria-invalid');
   if (!f.price.value) f.price.setAttribute('aria-invalid', 'true');
   if (!validSubs([data]).length) {
@@ -312,7 +319,7 @@ addEventListener('pagehide', commitPendingDelete);
 $('dash').addEventListener('click', async (e) => {
   const action = e.target.closest('[data-action]')?.dataset.action;
   if (action === 'add') openEditor();
-  if (action === 'scan') location.href = '/api/gmail/start';
+  if (action === 'scan') openScan();
   if (action === 'settings') openSettings();
   if (action === 'edit') openEditor(state.subs.find((s) => s.id === e.target.closest('li').dataset.id));
   if (action === 'dismiss-scan') {
@@ -331,13 +338,17 @@ $('dash').addEventListener('submit', async (e) => {
   e.preventDefault();
   const picks = [...new FormData(e.target).getAll('pick')].map((i) => state.scan.found[i]);
   if (!picks.length) return toast('Tick at least one to track.');
+  // A ticked price change updates the tracked one; everything else is added.
+  const updates = picks.map((f) => [f, trackedMatch(f.name)]).filter(([f, s]) => s && s.currency === f.currency && Math.abs(s.price - f.price) >= 0.01);
+  const adds = picks.filter((f) => !updates.some(([u]) => u === f));
   busy($('review-submit'), true);
   try {
-    state.subs = await api('POST', '/api/subs', picks);
+    for (const [f, s] of updates) state.subs = await api('PUT', `/api/subs/${s.id}`, { ...s, price: f.price });
+    if (adds.length) state.subs = await api('POST', '/api/subs', adds);
     await api('DELETE', '/api/scan', {});
     state.scan = null;
     render();
-    toast(`Tracking ${picks.length} new ${picks.length === 1 ? 'subscription' : 'subscriptions'}.`);
+    toast([adds.length && `Tracking ${adds.length} new`, updates.length && `updated ${updates.length} ${updates.length === 1 ? 'price' : 'prices'}`].filter(Boolean).join(', ').replace(/^./, (c) => c.toUpperCase()) + '.');
   } catch (err) {
     toast(err.message);
     busy($('review-submit'), false);
@@ -345,7 +356,40 @@ $('dash').addEventListener('submit', async (e) => {
 });
 
 $('nav-add').addEventListener('click', () => openEditor());
-$('nav-scan').addEventListener('click', () => { location.href = '/api/gmail/start'; });
+$('nav-scan').addEventListener('click', () => openScan());
+
+/* ── Scan ───────────────────────────────────────────────────── */
+
+function openScan() {
+  $('scan-google').hidden = !state.me.gmail;
+  $('imap-title').textContent = state.me.gmail ? 'Or use an app password' : 'Use an app password';
+  $('imap-error').textContent = '';
+  const f = $('imap-form');
+  f.reset();
+  f.email.value = state.me.email;
+  $('scan-dialog').showModal();
+}
+
+$('imap-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  $('imap-error').textContent = '';
+  if (!f.email.value.includes('@') || !f.password.value.trim()) return void ($('imap-error').textContent = 'Enter your email address and the app password.');
+  busy($('imap-submit'), true);
+  $('imap-wait').hidden = false;
+  try {
+    state.scan = await api('POST', '/api/scan/imap', { email: f.email.value, password: f.password.value });
+    f.reset();
+    $('scan-dialog').close();
+    render();
+    document.getElementById('review-title')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+  } catch (err) {
+    $('imap-error').textContent = err.message;
+  } finally {
+    busy($('imap-submit'), false);
+    $('imap-wait').hidden = true;
+  }
+});
 $('nav-settings').addEventListener('click', () => openSettings());
 for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => b.closest('dialog').close());
 
@@ -355,6 +399,9 @@ function calUrl() {
   return `${state.me.calendarUrl}?remind=${$('cal-remind').value}`;
 }
 function openSettings() {
+  $('mail-settings').hidden = !state.me.mail;
+  $('mail-on').checked = state.me.emailReminders;
+  $('mail-days').value = String(state.me.remindDays);
   $('cal-url').value = calUrl();
   $('settings-email').textContent = `Signed in as ${state.me.email}`;
   $('delete-error').textContent = '';
@@ -362,6 +409,17 @@ function openSettings() {
   $('settings-dialog').showModal();
 }
 $('cal-remind').addEventListener('change', () => { $('cal-url').value = calUrl(); });
+async function saveMailSettings() {
+  try {
+    state.me = await api('PATCH', '/api/me', { emailReminders: $('mail-on').checked, remindDays: Number($('mail-days').value) });
+  } catch (err) {
+    toast(`Couldn’t save: ${err.message}`);
+    $('mail-on').checked = state.me.emailReminders;
+    $('mail-days').value = String(state.me.remindDays);
+  }
+}
+$('mail-on').addEventListener('change', saveMailSettings);
+$('mail-days').addEventListener('change', saveMailSettings);
 $('cal-copy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText($('cal-url').value); $('cal-copy').textContent = 'Copied'; } catch { $('cal-url').select(); }
   setTimeout(() => { $('cal-copy').textContent = 'Copy'; }, 1500);
@@ -432,6 +490,50 @@ $('auth-form').addEventListener('submit', async (e) => {
   }
 });
 
+function showPanel(id) {
+  for (const p of ['panel-auth', 'forgot-form', 'reset-form']) $(p).hidden = p !== id;
+  $(id).querySelector('input')?.focus();
+}
+$('forgot').addEventListener('click', () => {
+  $('forgot-form').email.value = $('auth-form').email.value;
+  $('forgot-error').textContent = '';
+  showPanel('forgot-form');
+});
+for (const b of document.querySelectorAll('[data-back]')) b.addEventListener('click', () => showPanel('panel-auth'));
+
+$('forgot-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = e.target.email.value.trim();
+  if (!email.includes('@')) return void ($('forgot-error').textContent = 'Enter the email you signed up with.');
+  busy($('forgot-submit'), true);
+  try {
+    await api('POST', '/api/reset/request', { email });
+    $('forgot-error').textContent = '';
+    showPanel('panel-auth');
+    toast('If that email has an account, a reset link is on its way.');
+  } catch (err) {
+    $('forgot-error').textContent = err.message;
+  } finally {
+    busy($('forgot-submit'), false);
+  }
+});
+
+const resetToken = new URLSearchParams(location.search).get('reset');
+$('reset-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  busy($('reset-submit'), true);
+  try {
+    state.me = await api('POST', '/api/reset', { token: resetToken, password: e.target.password.value });
+    history.replaceState(null, '', '/');
+    await load();
+    toast('Password changed. You’re signed in.');
+  } catch (err) {
+    $('reset-error').textContent = err.message;
+  } finally {
+    busy($('reset-submit'), false);
+  }
+});
+
 /* ── Boot ───────────────────────────────────────────────────── */
 
 async function load() {
@@ -448,6 +550,7 @@ try {
   if (scanResult === 'cancelled') toast('Gmail access was cancelled. Nothing was read.');
 } catch {
   render();
+  if (resetToken) showPanel('reset-form');
 }
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
