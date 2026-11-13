@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../server.js';
+import { fakeTurso } from './fake-turso.js';
 
 async function start(opts = {}) {
   const app = createApp({ googleClientId: 'id', googleClientSecret: 'secret', ...opts });
@@ -110,4 +111,94 @@ test('static files cannot escape the public folder', async (t) => {
   assert.equal((await c('GET', '/')).status, 200);
   assert.equal((await c('GET', '/..%2fserver.js')).status, 404);
   assert.equal((await c('GET', '/%2e%2e/package.json')).status, 404);
+});
+
+test('password reset by email signs you in and kills old sessions', async (t) => {
+  const outbox = [];
+  const { app, client } = await start({ sendMail: async (m) => { outbox.push(m); } });
+  t.after(() => app.close());
+  const old = client(), anon = client();
+  await old('POST', '/api/signup', { email: 'ada@example.com', password: 'correct horse' });
+  assert.equal((await anon('POST', '/api/reset/request', { email: 'nobody@example.com' })).status, 202, 'same answer for unknown emails');
+  assert.equal(outbox.length, 0);
+  await anon('POST', '/api/reset/request', { email: 'ada@example.com' });
+  const link = /https?:\/\/\S+\?reset=([\w-]+)/.exec(outbox[0].text);
+  assert.ok(link, 'email contains a reset link');
+  assert.equal((await anon('POST', '/api/reset', { token: 'bogus', password: 'new password 1' })).status, 400);
+  assert.equal((await anon('POST', '/api/reset', { token: link[1], password: 'new password 1' })).status, 200);
+  assert.equal((await anon('GET', '/api/me')).json.email, 'ada@example.com');
+  assert.equal((await old('GET', '/api/me')).status, 401, 'old session revoked');
+  assert.equal((await anon('POST', '/api/reset', { token: link[1], password: 'another one 1' })).status, 400, 'link is single-use');
+  assert.equal((await client()('POST', '/api/login', { email: 'ada@example.com', password: 'new password 1' })).status, 200);
+});
+
+test('daily reminders: secret required, one email per charge, trials worded', async (t) => {
+  const outbox = [];
+  const { app, client } = await start({ sendMail: async (m) => { outbox.push(m); }, cronSecret: 's3cret' });
+  t.after(() => app.close());
+  const c = client();
+  await c('POST', '/api/signup', { email: 'ada@example.com', password: 'correct horse' });
+  const today = new Date().toISOString().slice(0, 10);
+  const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  await c('POST', '/api/subs', [
+    { ...sub, name: 'Soon', start: inDays(2) },
+    { ...sub, name: 'Trialy', trial: true, start: today },
+    { ...sub, name: 'Later', start: inDays(20) },
+  ]);
+  const cron = client();
+  assert.equal((await cron('POST', '/api/cron/reminders', {}, { authorization: 'Bearer wrong' })).status, 401);
+  const run = await cron('POST', '/api/cron/reminders', {}, { authorization: 'Bearer s3cret' });
+  assert.deepEqual(run.json, { users: 1, emails: 1 });
+  assert.equal(outbox[0].to, 'ada@example.com');
+  assert.match(outbox[0].text, /Soon: US\$15\.49 in 2 days/);
+  assert.match(outbox[0].text, /Trialy: free trial ends today/);
+  assert.doesNotMatch(outbox[0].text, /Later/);
+  await cron('POST', '/api/cron/reminders', {}, { authorization: 'Bearer s3cret' });
+  assert.equal(outbox.length, 1, 'no repeat for the same charge');
+  await c('PATCH', '/api/me', { emailReminders: false, remindDays: 7 });
+  assert.deepEqual((await cron('POST', '/api/cron/reminders', {}, { authorization: 'Bearer s3cret' })).json, { users: 0, emails: 0 });
+  assert.equal((await c('PATCH', '/api/me', { remindDays: 5 })).status, 400);
+});
+
+test('app-password scan stores results; provider rejection is shown to the user', async (t) => {
+  const { app, client } = await start({
+    imapScan: async ({ email, password }) => {
+      if (password !== 'abcdabcdabcdabcd') throw Object.assign(new Error('Your email provider rejected that email and app password.'), { userFacing: true });
+      return [
+        { from: 'Canva <no-reply@canva.com>', subject: 'Your Canva Pro receipt', date: '2026-09-08', snippet: 'Total paid $14.99' },
+        { from: 'Canva <no-reply@canva.com>', subject: 'Your Canva Pro receipt', date: '2026-10-08', snippet: 'Total paid $14.99' },
+      ];
+    },
+  });
+  t.after(() => app.close());
+  const c = client();
+  await c('POST', '/api/signup', { email: 'ada@example.com', password: 'correct horse' });
+  const bad = await c('POST', '/api/scan/imap', { email: 'ada@gmail.com', password: 'wrong' });
+  assert.equal(bad.status, 400);
+  assert.match(bad.json.error, /rejected/);
+  const ok = await c('POST', '/api/scan/imap', { email: 'ada@gmail.com', password: 'abcd abcd abcd abcd' });
+  assert.equal(ok.json.found[0].name, 'Canva');
+  assert.equal((await c('GET', '/api/scan')).json.found.length, 1);
+});
+
+test('behind a proxy, rate limits apply per real client', async (t) => {
+  const { app, client } = await start({ trustProxy: true });
+  t.after(() => app.close());
+  const c = client();
+  for (let i = 0; i < 10; i++) await c('POST', '/api/login', { email: 'x@example.com', password: 'nope nope' }, { 'x-forwarded-for': '1.1.1.1' });
+  assert.equal((await c('POST', '/api/login', { email: 'x@example.com', password: 'nope nope' }, { 'x-forwarded-for': '1.1.1.1' })).status, 429);
+  assert.equal((await c('POST', '/api/login', { email: 'x@example.com', password: 'nope nope' }, { 'x-forwarded-for': '2.2.2.2, 10.0.0.1' })).status, 401, 'another user is not locked out');
+});
+
+test('the whole API works on Turso too', async (t) => {
+  const turso = await fakeTurso();
+  const { app, client } = await start({ tursoUrl: turso.url, tursoToken: 'test-token' });
+  t.after(() => { app.close(); turso.server.close(); });
+  const c = client();
+  assert.equal((await c('POST', '/api/signup', { email: 'ada@example.com', password: 'correct horse' })).status, 201);
+  const list = (await c('POST', '/api/subs', [sub, { ...sub, name: 'Trial', trial: true }])).json;
+  assert.equal(list.length, 2);
+  assert.equal(list.find((s) => s.name === 'Trial').trial, true);
+  assert.equal((await c('PUT', `/api/subs/${list[0].id}`, { ...sub, price: 20 })).json.find((s) => s.id === list[0].id).price, 20);
+  assert.equal((await c('POST', '/api/login', { email: 'ada@example.com', password: 'correct horse' })).status, 200);
 });

@@ -61,6 +61,7 @@ export function toICS(subs, remindDays = 3) {
       `DTSTART;VALUE=DATE:${day}`,
       `RRULE:${rule}`,
       `SUMMARY:${esc(`${s.name} renews (${money(s.price, s.currency)})`)}`,
+      ...(s.trial ? [`DESCRIPTION:${esc(`Free trial ends ${s.start}. Cancel before then if you don't want to pay.`)}`] : []),
       'BEGIN:VALARM',
       'ACTION:DISPLAY',
       `DESCRIPTION:${esc(`${s.name} renews in ${remindDays} days`)}`,
@@ -115,5 +116,6 @@ export function validSubs(data) {
     cycle: s.cycle,
     start: s.start,
     category: typeof s.category === 'string' ? s.category.trim().slice(0, 40) : '',
+    trial: s.trial === true || s.trial === 1, // start = the day the trial turns into a paid plan
   }));
 }

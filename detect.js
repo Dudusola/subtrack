@@ -8,14 +8,19 @@ const RECURRING = /\b(subscription|renew(al|s|ed)?|membership|plan|monthly|annua
 const CODES = 'USD|EUR|GBP|NGN|INR|CAD|AUD|JPY|ZAR|KES|GHS|BRL|MXN';
 const SYMBOLS = { $: 'USD', US$: 'USD', CA$: 'CAD', A$: 'AUD', '€': 'EUR', '£': 'GBP', '₦': 'NGN', '₹': 'INR', '¥': 'JPY' };
 const NUM = '(\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?|\\d+(?:\\.\\d{1,2})?)';
-const AMOUNT = new RegExp(`(US\\$|CA\\$|A\\$|[$€£₦₹¥])\\s?${NUM}|\\b(${CODES})\\s?${NUM}|${NUM}\\s?(${CODES})\\b`);
+const AMOUNT = new RegExp(`(US\\$|CA\\$|A\\$|[$€£₦₹¥])\\s?${NUM}|\\b(${CODES})\\s?${NUM}|${NUM}\\s?(${CODES})\\b`, 'g');
+const TOTAL = /\b(total|amount|charged|paid|price|billed|you pay)\b[^0-9]{0,30}$/i;
 
+// Full receipts list tax, subtotals and totals; prefer the amount labelled as what was charged.
 export function parseAmount(text) {
-  const m = AMOUNT.exec(text);
-  if (!m) return null;
-  const [currency, num] = m[1] ? [SYMBOLS[m[1]], m[2]] : m[3] ? [m[3], m[4]] : [m[6], m[5]];
-  const price = Number(num.replace(/,/g, ''));
-  return price > 0 ? { price, currency } : null;
+  const found = [];
+  for (const m of text.matchAll(AMOUNT)) {
+    const [currency, num] = m[1] ? [SYMBOLS[m[1]], m[2]] : m[3] ? [m[3], m[4]] : [m[6], m[5]];
+    const price = Number(num.replace(/,/g, ''));
+    if (price > 0) found.push({ price, currency, labelled: TOTAL.test(text.slice(Math.max(0, m.index - 40), m.index)) });
+  }
+  const best = found.find((f) => f.labelled) || found[0];
+  return best ? { price: best.price, currency: best.currency } : null;
 }
 
 // Groups mail by the sender's registrable domain, so billing.x.com and x.com are one merchant.
