@@ -7,7 +7,7 @@
   "author": "Dudusola",
   "repository": "github:Dudusola/subtrack",
   "bin": { "subtrack": "server.js" },
-  "files": ["server.js", "detect.js", "gmail.js", "public"],
+  "files": ["*.js", "public"],
   "engines": { "node": ">=22.13" },
   "scripts": { "start": "node --env-file-if-exists=.env server.js", "test": "node --test" },
   "keywords": ["subscriptions", "gmail", "personal-finance", "pwa", "self-hosted"]

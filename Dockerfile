@@ -1,6 +1,6 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package.json server.js detect.js gmail.js ./
+COPY package.json server.js detect.js gmail.js db.js mailer.js imap.js mime.js ./
 COPY public ./public
 ENV NODE_ENV=production DATABASE_PATH=/data/subtrack.db PORT=3000
 VOLUME /data

@@ -1,0 +1,32 @@
+# One-click free deploy on Render. Data lives in a free Turso database because free Render services have no disk.
+services:
+  - type: web
+    name: subtrack
+    runtime: node
+    plan: free
+    buildCommand: echo "no build step"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: TRUST_PROXY
+        value: "1"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
