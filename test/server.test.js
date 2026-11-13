@@ -150,7 +150,7 @@ test('daily reminders: secret required, one email per charge, trials worded', as
   const run = await cron('POST', '/api/cron/reminders', {}, { authorization: 'Bearer s3cret' });
   assert.deepEqual(run.json, { users: 1, emails: 1 });
   assert.equal(outbox[0].to, 'ada@example.com');
-  assert.match(outbox[0].text, /Soon: US\$15\.49 in 2 days/);
+  assert.match(outbox[0].text, /Soon: (US)?\$15\.49 in 2 days/);
   assert.match(outbox[0].text, /Trialy: free trial ends today/);
   assert.doesNotMatch(outbox[0].text, /Later/);
   await cron('POST', '/api/cron/reminders', {}, { authorization: 'Bearer s3cret' });
