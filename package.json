@@ -1,1 +1,14 @@
-{"type":"module"}
+{
+  "name": "subtrack",
+  "version": "1.0.0",
+  "description": "Find the subscriptions in your inbox, see what renews next, and get calendar reminders before you're charged.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Dudusola",
+  "repository": "github:Dudusola/subtrack",
+  "bin": { "subtrack": "server.js" },
+  "files": ["server.js", "detect.js", "gmail.js", "public"],
+  "engines": { "node": ">=22.13" },
+  "scripts": { "start": "node --env-file-if-exists=.env server.js", "test": "node --test" },
+  "keywords": ["subscriptions", "gmail", "personal-finance", "pwa", "self-hosted"]
+}

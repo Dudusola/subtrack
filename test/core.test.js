@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nthRenewal, nextRenewal, daysUntil, totals, toICS, validSubs } from './core.js';
+import { nthRenewal, nextRenewal, daysUntil, totals, toICS, validSubs, upcoming, projection } from '../public/core.js';
 
 test('monthly renewals clamp to month end without drifting', () => {
   assert.equal(nthRenewal('2026-01-31', 'monthly', 1), '2026-02-28');
@@ -41,4 +41,17 @@ test('import drops malformed entries', () => {
   ]);
   assert.equal(out.length, 1);
   assert.throws(() => validSubs({}));
+});
+
+test('upcoming lists every charge in the window, weekly ones repeated', () => {
+  const subs = [
+    { name: 'Gym', price: 5, currency: 'USD', cycle: 'weekly', start: '2026-11-01' },
+    { name: 'Rent tool', price: 9, currency: 'USD', cycle: 'monthly', start: '2026-01-20' },
+  ];
+  assert.deepEqual(upcoming(subs, '2026-11-13', 14).map((u) => `${u.sub.name} ${u.date}`), ['Gym 2026-11-15', 'Rent tool 2026-11-20', 'Gym 2026-11-22']);
+});
+
+test('projection buckets charges by calendar month', () => {
+  const p = projection([{ name: 'A', price: 10, currency: 'USD', cycle: 'monthly', start: '2026-01-31' }, { name: 'B', price: 120, currency: 'USD', cycle: 'yearly', start: '2025-12-02' }], '2026-11-13', 3, 'USD');
+  assert.deepEqual(p, [{ month: '2026-11', total: 10 }, { month: '2026-12', total: 130 }, { month: '2027-01', total: 10 }]);
 });

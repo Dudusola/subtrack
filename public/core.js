@@ -72,15 +72,48 @@ export function toICS(subs, remindDays = 3) {
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//subtrack//EN', ...events, 'END:VCALENDAR', ''].join('\r\n');
 }
 
-// Trust boundary: imported JSON is user-supplied, keep only well-formed entries.
+export const addDays = (date, n) => fmt(new Date(Date.parse(date) + n * 86400000));
+
+// Every charge in [today, today + days), soonest first.
+export function upcoming(subs, today, days) {
+  const end = addDays(today, days);
+  const out = [];
+  for (const s of subs) {
+    let n = 0;
+    while (nthRenewal(s.start, s.cycle, n) < today) n++;
+    for (let d; (d = nthRenewal(s.start, s.cycle, n)) < end; n++) out.push({ sub: s, date: d });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.sub.name.localeCompare(b.sub.name));
+}
+
+// Projected spend per calendar month, current month first, in one currency.
+export function projection(subs, today, months, currency) {
+  const { y, m } = parse(today);
+  const buckets = Array.from({ length: months }, (_, i) => ({ month: fmt(new Date(Date.UTC(y, m + i, 1))).slice(0, 7), total: 0 }));
+  const end = fmt(new Date(Date.UTC(y, m + months, 1)));
+  for (const { sub, date } of upcoming(subs.filter((s) => s.currency === currency), today, daysUntil(end, today))) {
+    buckets.find((b) => b.month === date.slice(0, 7)).total += sub.price;
+  }
+  return buckets;
+}
+
+// Trust boundary: anything from a client or a backup file goes through here.
 export function validSubs(data) {
   if (!Array.isArray(data)) throw new Error('Expected a JSON array of subscriptions');
   return data.filter(
     (s) =>
-      s && typeof s.name === 'string' && s.name.trim() &&
-      Number.isFinite(s.price) && s.price >= 0 &&
+      s && typeof s.name === 'string' && s.name.trim() && s.name.length <= 80 &&
+      Number.isFinite(s.price) && s.price >= 0 && s.price < 1e9 &&
       s.cycle in CYCLES &&
-      /^\d{4}-\d{2}-\d{2}$/.test(s.start) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(s.start) && !Number.isNaN(Date.parse(s.start)) &&
       /^[A-Z]{3}$/.test(s.currency)
-  ).map((s) => ({ id: String(s.id || crypto.randomUUID()), name: s.name.trim(), price: s.price, currency: s.currency, cycle: s.cycle, start: s.start }));
+  ).map((s) => ({
+    id: String(s.id || crypto.randomUUID()),
+    name: s.name.trim(),
+    price: Math.round(s.price * 100) / 100,
+    currency: s.currency,
+    cycle: s.cycle,
+    start: s.start,
+    category: typeof s.category === 'string' ? s.category.trim().slice(0, 40) : '',
+  }));
 }
